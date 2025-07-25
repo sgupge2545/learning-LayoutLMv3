@@ -2,6 +2,9 @@ venv/
 origin/
 scanned/
 debug/
+trimed/
+model_out/
+*.json
 __pycache__/
 *.pyc
 *.pyo
