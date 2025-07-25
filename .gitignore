@@ -1,6 +1,7 @@
 venv/
 origin/
 scaned/
+debug/
 __pycache__/
 *.pyc
 *.pyo
