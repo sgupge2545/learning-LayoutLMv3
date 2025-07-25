@@ -1,6 +1,6 @@
 venv/
 origin/
-scaned/
+scanned/
 debug/
 __pycache__/
 *.pyc

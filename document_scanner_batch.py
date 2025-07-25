@@ -3,7 +3,7 @@ from PIL import Image
 from document_scanner import scan_document
 
 origin_dir = "origin"
-scaned_dir = "scaned"
+scaned_dir = "scanned"
 
 if not os.path.exists(scaned_dir):
     os.makedirs(scaned_dir)
