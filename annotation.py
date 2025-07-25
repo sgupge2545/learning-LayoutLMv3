@@ -24,7 +24,6 @@ LayoutLMv3 用 学習データ自動生成スクリプト（日本語）
   - 必要に応じて正規表現や正規化関数を調整してください。
 """
 
-import argparse
 import json
 import os
 import re
@@ -119,6 +118,17 @@ def find_value_span(words, value_norm):
     return -1, -1
 
 
+def iou(boxA, boxB):
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+    inter = max(0, xB - xA) * max(0, yB - yA)
+    areaA = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
+    areaB = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
+    return inter / max(areaA + areaB - inter, 1)
+
+
 # -----------------------------
 # Main
 # -----------------------------
@@ -136,11 +146,8 @@ def select_image_from_origin():
 
 
 def main():
-    import json
-    from pathlib import Path
-
     input_dir = "origin"
-    output_json = "train.json"
+    output_json = "dataset.json"
     annotations = []
 
     img_paths = sorted(
@@ -185,7 +192,6 @@ def main():
         cv2.destroyAllWindows()
 
         stem = img_path.stem
-        # bbox = [x_min, y_min, x_max, y_max]
         h, w = img.shape[:2]
         bbox_norm = [
             int(x_min * 1000 / w),
@@ -195,18 +201,52 @@ def main():
         ]
         trimed_dir = "trimed"
         os.makedirs(trimed_dir, exist_ok=True)
-        image_path = os.path.join(trimed_dir, img_path.name)
         img_with_rect = img.copy()
         cv2.rectangle(img_with_rect, (x_min, y_min), (x_max, y_max), (0, 0, 255), 3)
         save_path = os.path.join(trimed_dir, img_path.name)
         cv2.imwrite(save_path, img_with_rect)
 
+        veh_word = stem
+        veh_label = "B-VEHICLE_NUM"
+        veh_box_norm = bbox_norm
+
+        pil_img = Image.open(img_path).convert("RGB")
+        ocr = pytesseract.image_to_data(
+            pil_img, output_type=pytesseract.Output.DICT, lang="jpn"
+        )
+        W, H = pil_img.size
+
+        words = [veh_word]
+        bboxes = [veh_box_norm]
+        labels = [veh_label]
+
+        for i in range(len(ocr["text"])):
+            txt = ocr["text"][i].strip()
+            if txt == "" or int(ocr["conf"][i]) <= 0:
+                continue
+            x, y, w_box, h_box = (
+                ocr["left"][i],
+                ocr["top"][i],
+                ocr["width"][i],
+                ocr["height"][i],
+            )
+            norm_box = [
+                int(x * 1000 / W),
+                int(y * 1000 / H),
+                int((x + w_box) * 1000 / W),
+                int((y + h_box) * 1000 / H),
+            ]
+            if iou(norm_box, veh_box_norm) < 0.3:
+                words.append(txt)
+                bboxes.append(norm_box)
+                labels.append("O")
+
         ann = {
             "id": stem,
-            "image_path": image_path,
-            "words": [stem],
-            "bboxes": [bbox_norm],
-            "labels": ["B-VEHICLE_NUM"],
+            "image_path": str(img_path),  # こうする（元画像の絶対/相対パス）
+            "words": words,
+            "bboxes": bboxes,
+            "labels": labels,
         }
         annotations.append(ann)
 
